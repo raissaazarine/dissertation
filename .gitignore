@@ -1,0 +1,9 @@
+# Scope this repo to VS_Diff-main only -- ignore everything else in E:\Dissertation
+/*
+!/VS_Diff-main/
+!/.gitignore
+
+# Inside VS_Diff-main: exclude build/cache artifacts and the known-corrupt checkpoint
+VS_Diff-main/__pycache__/
+VS_Diff-main/.ipynb_checkpoints/
+VS_Diff-main/checkpoints/best.pth
