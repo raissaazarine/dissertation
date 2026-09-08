@@ -1,30 +1,27 @@
-"""Perturbation-based evaluation of XAI attribution methods for VS-Diff --
-Deletion AUC, Insertion AUC, Sensitivity, Entropy -- mirroring
-xai_evaluation.py (the Pix2Pix side, adapted from Mnyambo et al.). Runs the
-same 3 methods -- Saliency (vanilla gradient), Grad x Input, SmoothGrad --
-over the full val set. Resumable: re-running skips any (image_idx, method)
-pair already present in the output CSV.
+"""Perturbation-based evaluation of XAI attribution methods for VS-Diff:
+Deletion AUC, Insertion AUC, Sensitivity, Entropy. Mirrors xai_evaluation.py
+on the Pix2Pix side (adapted from Mnyambo et al.), running the same 3
+methods (Saliency, Grad x Input, SmoothGrad) over the full val set.
+Resumable: re-running skips any (image_idx, method) pair already in the
+output CSV.
 
-All 3 attribution methods share the SmoothGrad convention already used in
-full_saliency.py: backprop the L2 norm of the predicted noise through the
-phase input at a fixed mid-trajectory timestep (t_frac=0.5) with a fixed
-random noisy-stained reference -- VS-Diff's UNet takes a single
-(noisy_stained, phase, t) triple per call, unlike Pix2Pix's one-shot forward
-pass, so there's no single whole-generation "loss" to differentiate; the
-timestep is fixed instead so the 3 methods are directly comparable (only the
-gradient post-processing differs between them).
+VS-Diff's UNet takes a (noisy_stained, phase, t) triple per call rather than
+Pix2Pix's one-shot forward pass, so there's no single generation loss to
+differentiate. All 3 methods instead backprop the L2 norm of the predicted
+noise through the phase input at a fixed mid-trajectory timestep (t_frac=0.5)
+with a fixed random noisy-stained reference, same convention as
+full_saliency.py, so only the gradient post-processing differs between them.
 
-Deletion/Insertion AUC needs a full DDIM sample per masking fraction (not a
-single forward pass like Pix2Pix) -- by far the most expensive part of this
-script. To keep the full-val-set version tractable it uses a reduced
-DDIM_EVAL_STEPS=20 (vs. the 50 steps used for the main sweep/uncertainty
-analyses) purely for these relative comparisons BETWEEN attribution methods,
-not for reporting absolute image quality -- clean_pred here is computed at
-the same reduced step count, so the comparison stays internally consistent.
+Deletion/Insertion AUC needs a full DDIM sample per masking fraction instead
+of a single forward pass, which makes it the expensive part of this script.
+Uses a reduced DDIM_EVAL_STEPS=20 (vs. 50 for the main sweep/uncertainty
+analyses) to keep the full val set tractable; clean_pred is computed at the
+same reduced step count so the comparison stays consistent. These numbers
+are for comparing attribution methods against each other, not for reporting
+absolute image quality.
 
-Estimated ~37.6 hours over the full val set (measured: a 50-step DDIM sample
-takes ~0.696s on this GPU, so a 20-step sample ~0.28s; 22 samples/method x 3
-methods x 7373 images).
+~37.6 hours over the full val set (a 50-step DDIM sample takes ~0.696s on
+this GPU, so 20 steps ~0.28s; 22 samples/method x 3 methods x 7373 images).
 """
 import csv
 import os
@@ -46,8 +43,8 @@ VAL_DIR = os.path.join(BASE_DIR, "datasets/polyps_v7/val")
 OUT_DIR = os.path.join(BASE_DIR, "sweep_output/xai_evaluation")
 
 T_FRAC = 0.5              # fixed mid-trajectory timestep, matches full_saliency.py
-DDIM_EVAL_STEPS = 20      # reduced from 50 -- see module docstring
-N_FRACTIONS = 10          # 11 points: 0.0, 0.1, ..., 1.0 -- matches xai_evaluation.py
+DDIM_EVAL_STEPS = 20      # reduced from 50, see module docstring
+N_FRACTIONS = 10          # 11 points: 0.0, 0.1, ..., 1.0, matches xai_evaluation.py
 N_NOISE = 5               # sensitivity: number of noisy re-evaluations
 NOISE_STD = 0.03          # sensitivity: input noise std
 FILL_VALUE = -1.0         # masked-out pixel value (normalized range)
@@ -94,7 +91,7 @@ def grad_times_input(model, phase, scheduler, device, t=None, noisy_stained=None
 
 def smoothgrad(model, phase, scheduler, device, t=None, noisy_stained=None,
                n_smooth=SMOOTHGRAD_N_SAMPLES, noise_level=0.15):
-    """SmoothGrad (Smilkov et al., 2017) -- same as full_saliency.py's saliency_map."""
+    """SmoothGrad (Smilkov et al., 2017), same as full_saliency.py's saliency_map."""
     if t is None or noisy_stained is None:
         t, noisy_stained = _fixed_reference(scheduler, phase, device)
     grad_sq_sum = torch.zeros_like(phase)
@@ -138,11 +135,11 @@ def mask_insert(phase, ys, xs, n_inserted, fill_value=FILL_VALUE):
 
 def deletion_insertion_auc(model, phase, scheduler, device, attribution, clean_01, ssim_metric,
                             steps=DDIM_EVAL_STEPS, n_fractions=N_FRACTIONS):
-    """Progressively delete (mask out) / insert (keep only) the top-attributed
-    pixels, re-sample, and measure SSIM against the (reduced-step) clean
-    prediction. Deletion AUC low = attribution correctly finds pixels whose
-    removal hurts the output; Insertion AUC high = attribution correctly
-    finds pixels sufficient to reconstruct the output on their own."""
+    """Progressively delete (mask out) or insert (keep only) the top-attributed
+    pixels, re-sample, and measure SSIM against the reduced-step clean
+    prediction. Low deletion AUC means the attribution found pixels whose
+    removal actually hurts the output; high insertion AUC means it found
+    pixels that are enough to reconstruct the output on their own."""
     attribution_np = attribution.cpu().numpy()
     h, w = attribution_np.shape
     n_pix = h * w
@@ -173,9 +170,9 @@ def deletion_insertion_auc(model, phase, scheduler, device, attribution, clean_0
 
 def explanation_sensitivity(attribution_fn, model, phase, scheduler, device, base_map,
                              n_noise=N_NOISE, noise_std=NOISE_STD):
-    """How much the attribution map itself changes under small input
-    perturbations -- correlation between the base map and maps recomputed on
-    noisy copies of the input. Higher = more stable/trustworthy explanation."""
+    """How much the attribution map changes under small input perturbations:
+    correlation between the base map and maps recomputed on noisy copies of
+    the input. Higher means a more stable, trustworthy explanation."""
     base_flat = base_map.cpu().numpy().reshape(-1)
     corrs = []
     for _ in range(n_noise):
@@ -186,9 +183,9 @@ def explanation_sensitivity(attribution_fn, model, phase, scheduler, device, bas
 
 
 def explanation_entropy(attribution):
-    """Shannon entropy of the (normalized-to-sum-1) attribution map -- low =
-    concentrated on a few pixels, high = spread out everywhere (less useful
-    as an explanation)."""
+    """Shannon entropy of the attribution map, normalized to sum to 1. Low
+    means it's concentrated on a few pixels; high means it's spread out
+    everywhere, which is less useful as an explanation."""
     p = attribution.cpu().numpy().reshape(-1).astype(np.float64)
     p = p / (p.sum() + 1e-12)
     p = np.clip(p, 1e-12, None)
@@ -267,7 +264,7 @@ def run_xai_evaluation(model, scheduler, device, dataset, ssim_metric):
 
 def summarize_xai_evaluation():
     """Loads the per-image CSV, prints per-method means, and plots a 4-panel
-    bar comparison (Deletion AUC / Insertion AUC / Sensitivity / Entropy)."""
+    bar comparison: Deletion AUC, Insertion AUC, Sensitivity, Entropy."""
     csv_path = os.path.join(OUT_DIR, "perturbation_metrics_per_image.csv")
     assert os.path.exists(csv_path), "run_xai_evaluation must run at least once first"
 
@@ -308,13 +305,12 @@ def summarize_xai_evaluation():
 
 
 def pairwise_difference_heatmap(save=True):
-    """For each perturbation-based faithfulness metric, show the 3x3 matrix of
-    mean paired differences between XAI methods as a heatmap: cell (row, col) =
-    mean over val images of (metric[row_method] - metric[col_method]). The
-    matrix is antisymmetric with a zero diagonal; a diverging colormap is
-    centred at 0 and each metric gets its own scale (entropy differences are
-    ~10x the Deletion/Insertion AUC ones). If SciPy is available, cells are
-    starred by paired t-test p-value (row vs. column, same images)."""
+    """For each faithfulness metric, plot the 3x3 matrix of mean paired
+    differences between XAI methods: cell (row, col) is the mean over val
+    images of metric[row_method] - metric[col_method]. Antisymmetric with a
+    zero diagonal; diverging colormap centred at 0, each metric on its own
+    scale (entropy differences run ~10x the AUC ones). Cells are starred by
+    paired t-test p-value when SciPy is available."""
     import pandas as pd
 
     csv_path = os.path.join(OUT_DIR, "perturbation_metrics_per_image.csv")
@@ -384,10 +380,10 @@ def pairwise_difference_heatmap(save=True):
 def pairwise_difference_heatmap_single(save=True):
     """One combined heatmap: 3 method pairs (rows) x 4 faithfulness metrics
     (columns). Each cell is the mean paired difference (methodA - methodB)
-    over the val images. Because the metrics live on very different scales
-    (entropy diffs ~10x the Deletion/Insertion AUC ones), the CELL COLOUR is
-    normalized per column (divided by that column's max |difference|, diverging
-    map centred at 0) while the printed number is the raw mean difference."""
+    over the val images. The metrics live on very different scales (entropy
+    diffs run ~10x the AUC ones), so cell colour is normalized per column
+    (divided by that column's max |difference|) while the printed number is
+    the raw mean difference."""
     import pandas as pd
 
     csv_path = os.path.join(OUT_DIR, "perturbation_metrics_per_image.csv")

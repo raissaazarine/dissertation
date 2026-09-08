@@ -1,17 +1,17 @@
 """UMAP visualization of VS-Diff's predictive uncertainty structure, mirroring
-umap_uncertainty.py (the Pix2Pix side) but sourced from MC-DDIM stochastic
+umap_uncertainty.py on the Pix2Pix side, but sourced from MC-DDIM stochastic
 sampling (eta=1.0, see full_uncertainty.py) instead of MC-Dropout. Three parts:
   1. Per-sample 4-panel UMAP for a few fixed val images.
   2. Whole-val-set UMAP (pooled across all val images, subsampled per image).
   3. Point-count vs. embedding-spread summary per tissue class, reusing part 2's cache.
 
-Caching, at every stage: per-sample embeddings, whole-val-set per-image
-extracted features (resumable, one file per image -- an interrupted part-2
-run picks up where it left off), and the whole-val-set FITTED embedding
+Caches at every stage: per-sample embeddings, whole-val-set per-image
+extracted features (resumable, one file per image, so an interrupted part-2
+run picks up where it left off), and the whole-val-set fitted embedding
 itself. Re-running any part to tweak only the plot (colors, titles, layout)
-loads straight from the relevant cache instead of re-sampling/re-fitting.
+loads straight from the relevant cache instead of re-sampling or re-fitting.
 
-Needs `umap-learn` (pip install umap-learn) in vsdiff_env -- not installed by
+Needs `umap-learn` (pip install umap-learn) in vsdiff_env, not installed by
 default. Not launched automatically anywhere; call the run_* functions from a
 notebook cell, or run this file directly:
     vsdiff_env/bin/python full_umap.py [1|2|3|all]
@@ -36,7 +36,7 @@ CKPT_PATH = os.path.join(BASE_DIR, "runs/exp35/checkpoints/best.pth")
 VAL_DIR = os.path.join(BASE_DIR, "datasets/polyps_v7/val")
 OUT_DIR = os.path.join(BASE_DIR, "sweep_output/umap")
 STEPS = 50
-ETA = 1.0  # stochastic -- same convention as full_uncertainty.py's mc_uncertainty
+ETA = 1.0  # stochastic, same convention as full_uncertainty.py's mc_uncertainty
 
 TISSUE_NAMES = ['Nucleus', 'Cytoplasm & stroma', 'Background/lumen']
 TISSUE_COLORS = ['#7c1fd6', '#ff6fae', '#9a9a9a']
@@ -53,8 +53,8 @@ def denorm01(x):
 
 def classify_tissue(gt01):
     """Rough 3-way H&E tissue labelling from ground-truth colour (brightness
-    percentile): darkest 25% -> nucleus, lightest 25% -> background/lumen,
-    rest -> cytoplasm/stroma. gt01: (H,W,3) numpy array in [0,1]."""
+    percentile): darkest 25% is nucleus, lightest 25% is background/lumen,
+    rest is cytoplasm/stroma. gt01 is a (H,W,3) numpy array in [0,1]."""
     v = mcolors.rgb_to_hsv(gt01)[..., 2]
     p25, p75 = np.percentile(v, [25, 75])
     labels = np.full(v.shape, 1, dtype=np.int32)
@@ -64,9 +64,9 @@ def classify_tissue(gt01):
 
 
 def mc_ddim_stack(model, phase, scheduler, device, n_runs, steps=STEPS, eta=ETA):
-    """N independent stochastic DDIM samples for one image -- the VS-Diff
-    analogue of mc_dropout_stack on the Pix2Pix side. Returns (N, H, W, 3)
-    numpy array in [0, 1]."""
+    """N independent stochastic DDIM samples for one image, the VS-Diff
+    analogue of mc_dropout_stack on the Pix2Pix side. Returns an
+    (N, H, W, 3) numpy array in [0, 1]."""
     preds = []
     for _ in range(n_runs):
         with torch.no_grad():
@@ -123,7 +123,7 @@ def _plot_4panel(embedding, y_meanv, y_tissue, y_uncert, title, out_path):
 def run_umap_per_sample(model, scheduler, device, dataset, sample_indices=(0, 1, 2),
                          stride=2, n_runs=8):
     """Part 1: per-sample 4-panel UMAP. Each sample's fitted embedding is
-    cached -> re-running to tweak only the plot skips MC-DDIM + UMAP fit."""
+    cached, so re-running to tweak only the plot skips MC-DDIM + UMAP fit."""
     import umap
     os.makedirs(OUT_DIR, exist_ok=True)
 
@@ -134,8 +134,8 @@ def run_umap_per_sample(model, scheduler, device, dataset, sample_indices=(0, 1,
             cached = np.load(cache_path)
             embedding, y_tissue, y_uncert, y_meanv = (
                 cached["embedding"], cached["y_tissue"], cached["y_uncert"], cached["y_meanv"])
-            print(f"sample {idx}: loaded cached embedding ({embedding.shape[0]} points) "
-                  f"-- skipping MC-DDIM + UMAP fit", flush=True)
+            print(f"sample {idx}: loaded cached embedding ({embedding.shape[0]} points), "
+                  f"skipping MC-DDIM + UMAP fit", flush=True)
         else:
             phase, gt = dataset[idx]
             phase_b = phase.unsqueeze(0).to(device)
@@ -169,14 +169,14 @@ def run_umap_per_sample(model, scheduler, device, dataset, sample_indices=(0, 1,
 def run_umap_valset(model, scheduler, device, dataset, n_runs_all=4, points_per_image=150,
                      max_umap_points=400_000):
     """Part 2: whole-val-set UMAP. Resumable per-image feature extraction
-    (valset_feats/<image_idx>.npz -- an interrupted run picks up where it left
-    off), then a cached whole-set embedding (umap_valset_embedding.npz) once
-    fit -- re-running to tweak only the plot loads the embedding straight from
-    disk instead of re-extracting or re-fitting.
+    (valset_feats/<image_idx>.npz, so an interrupted run picks up where it
+    left off), then a cached whole-set embedding (umap_valset_embedding.npz)
+    once fit. Re-running to tweak only the plot loads the embedding straight
+    from disk instead of re-extracting or re-fitting.
 
     n_runs_all=4 keeps the cost down: each MC-DDIM sample is a full 50-step
-    DDIM pass (~0.7s measured), so 7373 images x 4 runs is already ~5.7 hours
-    (vs. Pix2Pix's near-instant dropout forward passes) -- raise it only if
+    DDIM pass (~0.7s measured), so 7373 images x 4 runs is already ~5.7 hours,
+    versus Pix2Pix's near-instant dropout forward passes. Raise it only if
     you have the time budget."""
     import umap
     os.makedirs(OUT_DIR, exist_ok=True)
@@ -190,8 +190,8 @@ def run_umap_valset(model, scheduler, device, dataset, n_runs_all=4, points_per_
             cached["embedding"], cached["y_tissue"], cached["y_uncert"],
             cached["y_meanv"], cached["sample_id"])
         n_images = int(cached["n_images"])
-        print(f"loaded cached EMBEDDING: {n_images} images, {embedding.shape[0]} points "
-              f"-- skipping feature extraction and UMAP fit entirely", flush=True)
+        print(f"loaded cached embedding: {n_images} images, {embedding.shape[0]} points, "
+              f"skipping feature extraction and UMAP fit entirely", flush=True)
     else:
         n_total = len(dataset)
         rng = np.random.default_rng(42)
@@ -256,8 +256,8 @@ def run_umap_valset(model, scheduler, device, dataset, n_runs_all=4, points_per_
 
         np.savez(embedding_cache_path, embedding=embedding, y_tissue=y_tissue, y_uncert=y_uncert,
                  y_meanv=y_meanv, sample_id=sample_id, n_images=n_images)
-        print(f"cached fitted embedding to {embedding_cache_path} -- future runs load it directly "
-              f"and skip straight to plotting", flush=True)
+        print(f"cached fitted embedding to {embedding_cache_path}, future runs load it "
+              f"directly and skip straight to plotting", flush=True)
 
     uncert_median = np.median(y_uncert)
     y_confidence = (y_uncert >= uncert_median).astype(int)
@@ -311,13 +311,13 @@ def run_umap_valset(model, scheduler, device, dataset, n_runs_all=4, points_per_
 
 def run_umap_spread():
     """Part 3: point-count vs. embedding-spread summary per tissue class,
-    reusing part 2's cached embedding (no refit)."""
+    reusing part 2's cached embedding without refitting."""
     embedding_cache_path = os.path.join(OUT_DIR, "umap_valset_embedding.npz")
     assert os.path.exists(embedding_cache_path), "run_umap_valset must run at least once first"
 
     cached = np.load(embedding_cache_path)
     embedding, y_tissue = cached["embedding"], cached["y_tissue"]
-    print(f"loaded cached embedding from {embedding_cache_path} -- reusing part 2's fit, "
+    print(f"loaded cached embedding from {embedding_cache_path}, reusing part 2's fit, "
           f"no refit needed", flush=True)
 
     summary = []

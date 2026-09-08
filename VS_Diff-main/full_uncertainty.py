@@ -1,17 +1,17 @@
 """Full-val-set (7373 images) predictive-uncertainty analysis: 8 stochastic
-DDIM samples per image (eta=1.0) -> per-pixel mean/std, checked against
-actual error vs. ground truth. Estimated ~11.4 hours (measured: one 50-step
-DDIM sample takes ~0.696s on this GPU).
+DDIM samples per image (eta=1.0), giving per-pixel mean/std, checked against
+actual error vs. ground truth. ~11.4 hours (a 50-step DDIM sample takes
+~0.696s on this GPU).
 
-Resumability: per-image sufficient statistics (n_pixels, sum_err, sum_std,
+Resumable: per-image sufficient statistics (n_pixels, sum_err, sum_std,
 sum_err*std, sum_err^2, sum_std^2) are appended to
 sweep_output/uncertainty/per_image_stats.csv as soon as each image is done.
 The exact whole-val-set Pearson correlation is reconstructed from these sums
-at the end -- no need to hold per-pixel arrays for 7373 images in memory.
-Mean/std prediction arrays for the first N_VIS images are also saved as .npy
-for the qualitative panel plotted separately in the notebook.
+at the end, so there's no need to hold per-pixel arrays for 7373 images in
+memory. Mean/std prediction arrays for the first N_VIS images are also saved
+as .npy for the qualitative panel plotted separately in the notebook.
 
-Run with: vsdiff_env/bin/python full_uncertainty.py
+Run: vsdiff_env/bin/python full_uncertainty.py
 """
 import csv
 import os
@@ -63,9 +63,9 @@ def load_done_indices(csv_path):
 
 
 def rebuild_correlation_summary(out_dir, per_image_csv):
-    """(Re)computes the exact Pearson r over all rows written so far, from the
-    per-image sufficient statistics -- called periodically (partial progress)
-    and once more at the end (final)."""
+    """Computes the exact Pearson r over all rows written so far, from the
+    per-image sufficient statistics. Called periodically during a run and
+    once more at the end."""
     n = sum_e = sum_s = sum_es = sum_e2 = sum_s2 = 0.0
     with open(per_image_csv, newline="") as fh:
         for row in csv.DictReader(fh):
@@ -92,9 +92,8 @@ def rebuild_correlation_summary(out_dir, per_image_csv):
 
 
 def run_uncertainty(model, scheduler, device, dataset):
-    """Callable directly from a notebook cell (with an already-loaded model)
-    or from main() below (standalone script) -- same resumable CSV logic
-    either way, so progress survives whichever way this is invoked."""
+    """Called from a notebook cell with a preloaded model, or from main()
+    below. Same resumable CSV logic either way."""
     os.makedirs(OUT_DIR, exist_ok=True)
     vis_dir = os.path.join(OUT_DIR, "vis_arrays")
     os.makedirs(vis_dir, exist_ok=True)

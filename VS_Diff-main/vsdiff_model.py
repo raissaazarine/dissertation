@@ -9,7 +9,7 @@ from diffusers import UNet2DModel, DDIMScheduler
 
 import virt_stain_utils2 as vsu
 
-# ---- Dataset (copied from train+inference.ipynb, cells 2-4 -- not in virt_stain_utils2.py) ----
+# ---- Dataset (copied from train+inference.ipynb, cells 2-4, not in virt_stain_utils2.py) ----
 
 stain_transform = transforms.Compose([
     transforms.ToTensor(),
@@ -81,7 +81,7 @@ def load_checkpoint(model, checkpoint_path, device):
 
 def sample(model, phase, scheduler, device, steps, eta):
     """phase: [B, 1, H, W] in [-1, 1]. Returns [B, 3, H, W] in [-1, 1].
-    Delegates to virt_stain_utils2.ddim_sample_full so the sampling loop itself
-    is never duplicated/re-transcribed -- it's imported, not re-typed."""
+    Delegates to virt_stain_utils2.ddim_sample_full so the sampling loop
+    isn't duplicated here."""
     return vsu.ddim_sample_full(model, phase, scheduler, device,
                                  num_inference_steps=steps, eta=eta)
