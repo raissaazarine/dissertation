@@ -26,21 +26,31 @@ resume_full_val_xai.log
 resume_full_val_xai.err.log
 resume_full_val_xai.pid
 
-# Full-val-set sweep/analysis outputs: keep the small summary CSVs and
-# curated figures, exclude the thousands of per-image prediction dumps and
-# large binary feature caches
-blur_sweep_output/*
-!blur_sweep_output/summary.csv
-contrast_sweep_output/*
-!contrast_sweep_output/summary.csv
-gaussian_sweep_output/*
-!gaussian_sweep_output/summary.csv
-salt_pepper_sweep_output/*
-!salt_pepper_sweep_output/summary.csv
+# Session-generated helper scripts and figures, and all sweep/analysis
+# result folders -- not part of the core codebase. Mirrors VS_Diff-main's
+# scope: source scripts + the main notebook only, no generated output.
+make_*.py
+preview_candidates.py
+candidates_preview.png
+output_blur.png
+umap_uncertainty.png
+blur_combined_patch50.png
+blur_example_patch.png
+contrast_combined_patch50.png
+contrast_example_patch50.png
+gaussian_combined_patch50.png
+gaussian_example_patch50.png
+saltpepper_combined_patch50.png
+saltpepper_example_patch50.png
 
-uncertainty/*.npz
-
-blur_output/train/
-blur_output/val/
-texture_output/train/
-texture_output/val/
+attribution_mass/
+baseline_accuracy_output/
+blur_output/
+blur_sweep_output/
+contrast_sweep_output/
+gaussian_sweep_output/
+salt_pepper_sweep_output/
+sliding_window_output/
+texture_output/
+uncertainty/
+xai_evaluation/

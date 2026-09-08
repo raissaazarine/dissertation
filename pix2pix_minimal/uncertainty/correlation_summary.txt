@@ -1,3 +1,0 @@
-n_pixels_pooled=7549952
-pearson_r=0.14074595497080064
-note=stride-8 subsample per image (same pool as AUC), not exact whole-set sufficient statistics like the diffusion side
