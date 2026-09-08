@@ -1,20 +1,19 @@
-"""
-Gaussian-noise robustness sweep for the VS-Diff model.
-Same design as ../gaussian_sweep.py (pix2pix side): clean_pred is a fresh DDIM
-sample computed once per image, independent from each perturbed level's sample
--- so std=0.00 (perturb_gaussian is a no-op there) measures the sampler's own
-initial-noise stochasticity, not a trivial self-comparison.
+"""Gaussian-noise robustness sweep for the VS-Diff model. Same design as
+../gaussian_sweep.py on the pix2pix side: clean_pred is a fresh DDIM sample
+computed once per image, independent from each perturbed level's sample, so
+std=0.00 (a no-op for perturb_gaussian) measures the sampler's own
+initial-noise stochasticity rather than a trivial self-comparison.
 
-ASSUMPTIONS -- check before running:
+Check before running:
   - DATA_ROOT points at the same dataset the model was trained on (guessed as
-    the pix2pix side's ../datasets/polyps_v7; adjust if VS-Diff used something else).
-  - CHECKPOINT_PATH's file must be the real ~74MB weights, not the Git LFS
-    pointer that ships in this repo by default (`git lfs pull` first).
-  - STEPS/ETA match the notebook's own inference call (cell 15): 100 steps, eta=0.0.
+    the pix2pix side's ../datasets/polyps_v7; adjust if VS-Diff used something else)
+  - CHECKPOINT_PATH is the real ~74MB weights, not the Git LFS pointer that
+    ships in this repo by default (`git lfs pull` first)
+  - STEPS/ETA match the notebook's own inference call (cell 15): 100 steps, eta=0.0
 
-Slow: DDIM sampling is STEPS forward passes per image *per level* (clean_pred
-adds one more per image), unlike the pix2pix side's single forward pass.
-Set MAX_IMAGES below for a quick sanity run before committing to the full sweep.
+Slow: DDIM sampling is STEPS forward passes per image per level (clean_pred
+adds one more), unlike the pix2pix side's single forward pass. Set
+MAX_IMAGES for a quick sanity run before committing to the full sweep.
 """
 import os
 import pathlib

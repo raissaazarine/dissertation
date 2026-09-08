@@ -1,16 +1,12 @@
-"""Full-val-set (7373 images) SmoothGrad input-saliency: much cheaper than the
-sweep/uncertainty jobs (~0.44s/image measured -> ~54 min total, no iterative
-DDIM sampling involved). Produces a dataset-level mean saliency map (which
-phase-image regions the model relies on across the whole val set) plus a
-per-image summary CSV.
+"""SmoothGrad saliency over the full val set (7373 images). No DDIM sampling
+needed here so it's much cheaper than the sweep/uncertainty jobs (~0.44s per
+image, ~54 min total). Writes a mean saliency map over the val set plus a
+per-image CSV.
 
-Resumability: the running sum used for the mean saliency map is persisted to
-running_sum.npy/count.txt after every image, and per-image scalar summaries
-are appended to per_image_saliency.csv -- already-summed image indices are
-skipped on restart. Raw per-image maps for the first N_VIS images are kept
-for the notebook's qualitative panel.
+Resumable via running_sum.npy/count.txt and per_image_saliency.csv. First
+N_VIS raw maps are saved for the notebook panel.
 
-Run with: vsdiff_env/bin/python full_saliency.py
+Run: vsdiff_env/bin/python full_saliency.py
 """
 import csv
 import os
@@ -63,9 +59,8 @@ def load_done_indices(csv_path):
 
 
 def run_saliency(model, scheduler, device, dataset):
-    """Callable directly from a notebook cell (with an already-loaded model)
-    or from main() below (standalone script) -- same resumable logic either
-    way, so progress survives whichever way this is invoked."""
+    """Called from a notebook cell with a preloaded model, or from main()
+    below. Same resumable logic either way."""
     os.makedirs(OUT_DIR, exist_ok=True)
     vis_dir = os.path.join(OUT_DIR, "vis_arrays")
     os.makedirs(vis_dir, exist_ok=True)

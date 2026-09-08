@@ -1,27 +1,29 @@
-"""Full-val-set (7373 images) uncertainty-vs-error RETRIEVAL validation for the
-diffusion model, mirroring pix2pix_minimal/uncertainty_sweep.py's protocol so both
-models are validated with the same metric (AUC of predictive uncertainty for
-identifying the worst-error-quartile pixels, plus a Youden's J-optimal threshold).
+"""Full-val-set (7373 images) uncertainty-vs-error retrieval validation for
+the diffusion model, mirroring pix2pix_minimal/uncertainty_sweep.py's
+protocol so both models are validated with the same metric: AUC of
+predictive uncertainty for identifying the worst-error-quartile pixels, plus
+a Youden's J-optimal threshold.
 
-full_uncertainty.py only keeps per-image SUFFICIENT STATISTICS (sums), which is
-enough to reconstruct the exact whole-val-set Pearson r without holding per-pixel
-arrays in memory, but is NOT enough to compute an AUC -- that needs the actual
-pooled distribution of (uncertainty, error) pixel pairs. This script is therefore a
-separate pass rather than a hook into full_uncertainty.py, so it can be run
-independently of (and without disturbing) an already-running or already-finished
-full_uncertainty.py job. It reuses full_uncertainty.py's model setup and MC-sampling
-(same 8x stochastic DDIM samples per image, eta=1.0) -- same ~11-hour cost.
+full_uncertainty.py only keeps per-image sufficient statistics (sums), which
+is enough to reconstruct the exact whole-val-set Pearson r without holding
+per-pixel arrays in memory, but not enough to compute an AUC, which needs
+the actual pooled distribution of (uncertainty, error) pixel pairs. So this
+is a separate pass rather than a hook into full_uncertainty.py, and can run
+independently of an already-running or already-finished full_uncertainty.py
+job. It reuses full_uncertainty.py's model setup and MC-sampling (same 8x
+stochastic DDIM samples per image, eta=1.0), so the same ~11-hour cost.
 
-Per image, the uncertainty (predictive std) and error (|mean pred - GT|) maps are
-subsampled on an 8-pixel stride (same STRIDE=8 as
-pix2pix_minimal/uncertainty_sweep.py, ~1024 points/image -- keeps the pooled arrays
-manageable over 7373 images) and cached to sweep_output/uncertainty_auc/per_image_pixels/
-as soon as each image is done, so an interrupted run resumes instead of restarting.
-Re-running this script (or calling compute_auc_summary directly) recomputes the AUC
-from whatever's cached so far, matching full_uncertainty.py's "partial progress"
+Per image, the uncertainty (predictive std) and error (|mean pred - GT|)
+maps are subsampled on an 8-pixel stride (same STRIDE=8 as
+pix2pix_minimal/uncertainty_sweep.py, ~1024 points/image, to keep the pooled
+arrays manageable over 7373 images) and cached to
+sweep_output/uncertainty_auc/per_image_pixels/ as soon as each image is
+done, so an interrupted run resumes instead of restarting. Re-running this
+script (or calling compute_auc_summary directly) recomputes the AUC from
+whatever's cached so far, matching full_uncertainty.py's partial-progress
 correlation summary.
 
-Run with: vsdiff_env/bin/python full_uncertainty_auc.py
+Run: vsdiff_env/bin/python full_uncertainty_auc.py
 """
 import os
 import sys
@@ -39,7 +41,7 @@ from full_uncertainty import (
 from vsdiff_model import build_model_and_scheduler, load_checkpoint, VirtualStainingDataset
 
 OUT_DIR = os.path.join(BASE_DIR, "sweep_output/uncertainty_auc")
-STRIDE = 8  # matches pix2pix_minimal/uncertainty_sweep.py -- keeps pooled arrays manageable
+STRIDE = 8  # matches pix2pix_minimal/uncertainty_sweep.py, keeps pooled arrays manageable
 
 
 def load_done_indices(pix_dir):
@@ -52,8 +54,9 @@ def load_done_indices(pix_dir):
 
 
 def compute_auc_summary(pix_dir, out_dir):
-    """(Re)computes AUC / ROC / Youden's J over all per-image pixel caches written
-    so far -- called at the end of a full run, or standalone to check progress."""
+    """Computes AUC, ROC, and Youden's J over all per-image pixel caches
+    written so far. Called at the end of a full run, or standalone to check
+    progress."""
     files = [f for f in os.listdir(pix_dir) if f.endswith(".npz")]
     if not files:
         return None
@@ -92,13 +95,13 @@ def compute_auc_summary(pix_dir, out_dir):
 
 def plot_auc_figure(out_dir=OUT_DIR, n_samples=N_SAMPLES):
     """3-panel figure mirroring pix2pix_minimal's
-    uncertainty_vs_error_validation_FULLVAL.png (distribution histogram / joint
-    hexbin / ROC curve), rebuilt from the same per-image pixel caches
-    compute_auc_summary reads. Call after run_uncertainty_auc has finished (or
-    to re-plot from whatever's cached so far)."""
+    uncertainty_vs_error_validation_FULLVAL.png: distribution histogram,
+    joint hexbin, ROC curve, rebuilt from the same per-image pixel caches
+    compute_auc_summary reads. Call after run_uncertainty_auc has finished,
+    or to re-plot from whatever's cached so far."""
     pix_dir = os.path.join(out_dir, "per_image_pixels")
     files = [f for f in os.listdir(pix_dir) if f.endswith(".npz")]
-    assert files, f"no cached pixels in {pix_dir} -- run_uncertainty_auc must run at least once first"
+    assert files, f"no cached pixels in {pix_dir}, run_uncertainty_auc must run at least once first"
 
     all_err, all_unc = [], []
     for fn in files:
@@ -157,8 +160,8 @@ def plot_auc_figure(out_dir=OUT_DIR, n_samples=N_SAMPLES):
 
 
 def run_uncertainty_auc(model, scheduler, device, dataset):
-    """Callable directly from a notebook cell (with an already-loaded model) or
-    from main() below -- same resumable per-image caching either way."""
+    """Called from a notebook cell with a preloaded model, or from main()
+    below. Same resumable per-image caching either way."""
     os.makedirs(OUT_DIR, exist_ok=True)
     pix_dir = os.path.join(OUT_DIR, "per_image_pixels")
     os.makedirs(pix_dir, exist_ok=True)

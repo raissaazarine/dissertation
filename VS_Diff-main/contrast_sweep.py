@@ -1,8 +1,6 @@
-"""
-Contrast robustness sweep for the VS-Diff model. See gaussian_sweep.py for the
-full explanation of the clean_pred/floor design and the ASSUMPTIONS that need
-checking before running (dataset path, real checkpoint weights, STEPS/ETA).
-"""
+"""Contrast robustness sweep for the VS-Diff model. See gaussian_sweep.py for
+the clean_pred/floor design and the assumptions to check before running
+(dataset path, real checkpoint weights, STEPS/ETA)."""
 import os
 import pathlib
 import csv

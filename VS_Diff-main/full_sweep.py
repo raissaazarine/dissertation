@@ -1,37 +1,35 @@
 """Full-val-set (7373 images) perturbation robustness sweep: Gaussian noise,
-blur, salt & pepper, contrast. Estimated ~98 hours total (measured: one
-50-step DDIM sample takes ~0.696s on this GPU) -- designed to run unattended
-for days and survive interruption.
+blur, salt & pepper, contrast. ~98 hours total (a 50-step DDIM sample takes
+~0.696s on this GPU). Meant to run unattended for days and survive
+interruption.
 
 Seeded sampling: the clean baseline and every perturbation level for a given
-image are sampled with the SAME DDIM starting noise (seed=image_idx, via
-ddim_sample_seeded) instead of an independent random draw each time. This
+image share the same DDIM starting noise (seed=image_idx, via
+ddim_sample_seeded) instead of an independent random draw each time. That
 isolates the perturbation's effect from the sampler's own initial-noise
-randomness -- e.g. the no-op level (noise_std=0.00, kernel_size=1, ...) now
-matches the clean prediction essentially exactly (SSIM~1.0), instead of only
+randomness, so the no-op level (noise_std=0.00, kernel_size=1, ...) now
+matches the clean prediction almost exactly (SSIM~1.0) instead of just
 reflecting how much two independent samples of the same input naturally
-differ (that sampler-variance question is what the uncertainty analysis
-answers instead, via genuinely independent stochastic samples, eta>0).
+differ. That sampler-variance question is what the uncertainty analysis
+answers instead, using genuinely independent stochastic samples (eta>0).
 
 Saves both metrics and images: each (image, level) prediction is written to
-sweep_output_seeded/<name>/<level>/<file>.png, alongside the SSIM/PSNR/LPIPS
-row. The unperturbed baseline prediction is computed ONCE per image and
-shared across all 4 sweep types via sweep_output_seeded/clean/ (not
-recomputed per sweep -- same input, same STEPS, so there's nothing
-sweep-specific about it).
+sweep_output_seeded/<name>/<level>/<file>.png alongside its SSIM/PSNR/LPIPS
+row. The unperturbed baseline prediction is computed once per image and
+shared across all 4 sweep types via sweep_output_seeded/clean/, since it's
+the same input and step count regardless of which sweep is running.
 
-Output lives under sweep_output_seeded/ (NOT sweep_output/) -- that old
-directory holds results from before seeded sampling was added (unseeded:
-clean vs. no-op-level predictions used independent random starting noise, so
-they didn't match exactly) and is left untouched as a historical record, not
-read or written by this version of the script.
+Output lives under sweep_output_seeded/, not sweep_output/. That older
+directory holds results from before seeded sampling was added, where clean
+vs. no-op-level predictions used independent random starting noise and
+didn't match exactly. Left untouched as a historical record.
 
-Resumability: every (image, level) result is appended to
-sweep_output_seeded/<name>/per_image_metrics.csv as soon as it's computed. On
-restart, already-computed (image, level) pairs are skipped, so killing this
-process and re-running it loses at most the one row in flight.
+Resumable: every (image, level) result is appended to
+sweep_output_seeded/<name>/per_image_metrics.csv as soon as it's computed.
+Already-computed pairs are skipped on restart, so killing this process loses
+at most the one row in flight.
 
-Run with: vsdiff_env/bin/python full_sweep.py [gaussian|blur|salt_pepper|contrast|all]
+Run: vsdiff_env/bin/python full_sweep.py [gaussian|blur|salt_pepper|contrast|all]
 """
 import csv
 import os
@@ -55,13 +53,11 @@ VAL_DIR = os.path.join(BASE_DIR, "datasets/polyps_v7/val")
 STEPS = 50
 ETA = 0.0
 
-# New output root for the seeded design -- kept separate from the old
-# sweep_output/ (unseeded) so the two are never mixed or confused.
+# output root for the seeded design, kept separate from the old sweep_output/
 OUT_ROOT = os.path.join(BASE_DIR, "sweep_output_seeded")
 
-# One clean (unperturbed) prediction per image, shared across all 4 sweep
-# types -- avoids recomputing the same 50-step DDIM sample 4x per image
-# (gaussian/blur/salt_pepper/contrast each used to compute their own).
+# one clean prediction per image, shared across all 4 sweep types instead of
+# recomputing the same 50-step DDIM sample 4x per image
 SHARED_CLEAN_DIR = os.path.join(OUT_ROOT, "clean")
 
 SWEEPS = {
@@ -77,13 +73,13 @@ def denorm01(x):
 
 
 def ddim_sample_seeded(model, phase, scheduler, device, seed, num_inference_steps, eta):
-    """Same reverse process as vsu.ddim_sample_full, but the starting noise is
-    drawn from a generator seeded per-image (seed=image_idx) instead of the
-    global unseeded RNG. Reusing the same seed for an image's clean prediction
-    and every one of its perturbation levels means the ONLY thing that differs
-    between rows is the perturbed input itself -- not an independent random
-    starting point too. (Only matters for eta=0.0, used here: eta>0 adds fresh
-    noise at every reverse step regardless of the starting point.)"""
+    """Same reverse process as vsu.ddim_sample_full, but the starting noise
+    comes from a generator seeded per image (seed=image_idx) instead of the
+    global RNG. Reusing that seed for an image's clean prediction and every
+    perturbation level means the only thing that differs between rows is the
+    perturbed input itself, not the starting point too. Only matters for
+    eta=0.0 as used here; eta>0 adds fresh noise at every reverse step
+    regardless of the starting point."""
     model.eval()
     B = phase.size(0)
     g = torch.Generator(device=device).manual_seed(seed)
@@ -114,10 +110,10 @@ def save_pred(pred01, path):
 
 def get_or_compute_clean(model, phase, scheduler, device, fname, seed):
     """Loads the shared clean prediction for this image if another sweep
-    already computed it; otherwise samples it once (50 steps, seeded on the
-    image index) and saves it to SHARED_CLEAN_DIR for every other sweep type
-    to reuse. Deterministic given (model, phase, seed), so loading a
-    previously-saved file is exactly equivalent to recomputing it."""
+    already computed it, otherwise samples it once (50 steps, seeded on the
+    image index) and saves it to SHARED_CLEAN_DIR for reuse. Deterministic
+    given (model, phase, seed), so loading a saved file is equivalent to
+    recomputing it."""
     path = os.path.join(SHARED_CLEAN_DIR, fname)
     if os.path.exists(path):
         arr = np.asarray(Image.open(path)).astype(np.float32) / 255.0
@@ -142,9 +138,9 @@ def load_done_pairs(csv_path):
 
 
 def rebuild_summary(name, out_dir, per_image_csv, cfg):
-    """(Re)builds summary.csv from whatever rows are in per_image_csv so far --
-    called periodically during a run (partial progress) and once more at the
-    end (final), so the notebook can plot live progress mid-run."""
+    """Rebuilds summary.csv from whatever rows are in per_image_csv so far.
+    Called periodically during a run and once more at the end, so the
+    notebook can plot live progress mid-run."""
     rows_by_level = {}
     with open(per_image_csv, newline="") as fh:
         for row in csv.DictReader(fh):
@@ -205,9 +201,8 @@ def run_sweep(name, model, scheduler, device, ssim_metric, lpips_fn, dataset):
         fname = os.path.basename(dataset.image_paths[i])
         phase = phase.unsqueeze(0).to(device)
 
-        # same seed (image index) for the clean baseline and every perturbation
-        # level of this image -- isolates the perturbation's effect from the
-        # sampler's own initial-noise randomness (see ddim_sample_seeded)
+        # same seed (image index) for the clean baseline and every level of
+        # this image, see ddim_sample_seeded
         clean_01 = get_or_compute_clean(model, phase, scheduler, device, fname, seed=i)
 
         for lv in levels_needed:

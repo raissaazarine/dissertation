@@ -1,18 +1,20 @@
-"""Spatial map of per-pixel MC-DDIM predictions for VS-Diff -- the diffusion-model
-counterpart to pix2pix's spatial_map_sample_1.png (see pix2pix_minimal's commented-out
-cell in pix2pix.ipynb). Unlike the whole-val-set UMAP (full_umap.py), every pixel here
-stays at its real (x, y) position, so the panels keep the same silhouette as the actual
-tissue patch, just recoloured by prediction / tissue class / uncertainty / confidence.
+"""Spatial map of per-pixel MC-DDIM predictions for VS-Diff, the
+diffusion-model counterpart to pix2pix's spatial_map_sample_1.png (see the
+commented-out cell in pix2pix_minimal's pix2pix.ipynb). Unlike the
+whole-val-set UMAP (full_umap.py), every pixel here stays at its real (x, y)
+position, so the panels keep the same silhouette as the actual tissue patch,
+just recoloured by prediction, tissue class, uncertainty, or confidence.
 
-Single patch only (not the full 7373-image val set) -- this is what makes MC-DDIM
-tractable here despite each sample being a full 50-step DDIM pass (unlike pix2pix's
-near-instant dropout forward pass). See Section methods-uncertainty / res-uq for why
-this analysis was not extended to the full val set for the diffusion model.
+Single patch only, not the full 7373-image val set. That's what makes
+MC-DDIM tractable here, since each sample is a full 50-step DDIM pass rather
+than pix2pix's near-instant dropout forward pass. See Section
+methods-uncertainty / res-uq for why this wasn't extended to the full val
+set for the diffusion model.
 
-TARGET_IDX=5914 is deliberately the same physical patch as pix2pix's "Sample 1"
-(datasets/polyps_v7/val/5914.tif -- VirtualStainingDataset sorts by int(filename), so
-index == filename here), for a direct visual comparison between the two models'
-uncertainty structure on the same tissue.
+TARGET_IDX=5914 is deliberately the same physical patch as pix2pix's "Sample
+1" (datasets/polyps_v7/val/5914.tif; VirtualStainingDataset sorts by
+int(filename), so index == filename here), for a direct visual comparison
+between the two models' uncertainty structure on the same tissue.
 
 Usable two ways, mirroring full_umap.py / full_uncertainty.py:
   - from a notebook cell that already has model/scheduler/device/dataset built:
@@ -39,7 +41,7 @@ VAL_DIR = os.path.join(BASE_DIR, "datasets/polyps_v7/val")
 OUT_DIR = os.path.join(BASE_DIR, "sweep_output/uncertainty_spatial_map")
 
 STEPS = 50
-ETA = 1.0  # stochastic -- same convention as full_uncertainty.py / full_umap.py
+ETA = 1.0  # stochastic, same convention as full_uncertainty.py / full_umap.py
 TARGET_IDX = 5914  # same physical patch as pix2pix's "Sample 1"
 N_RUNS_DEFAULT = 20  # matches pix2pix's spatial-map cell
 
@@ -58,8 +60,8 @@ def denorm01(x):
 
 def classify_tissue(gt01):
     """Rough 3-way H&E tissue labelling from ground-truth colour (brightness
-    percentile): darkest 25% -> nucleus, lightest 25% -> background/lumen,
-    rest -> cytoplasm/stroma. gt01: (H,W,3) numpy array in [0,1]."""
+    percentile): darkest 25% is nucleus, lightest 25% is background/lumen,
+    rest is cytoplasm/stroma. gt01 is a (H,W,3) numpy array in [0,1]."""
     v = mcolors.rgb_to_hsv(gt01)[..., 2]
     p25, p75 = np.percentile(v, [25, 75])
     labels = np.full(v.shape, 1, dtype=np.int32)
@@ -70,9 +72,9 @@ def classify_tissue(gt01):
 
 def run_spatial_map(model, scheduler, device, dataset, n_runs=N_RUNS_DEFAULT,
                      target_idx=TARGET_IDX, out_dir=OUT_DIR):
-    """Runs n_runs stochastic MC-DDIM samples on dataset[target_idx], then plots
-    the 4-panel spatial map (mean brightness / tissue class / uncertainty /
-    confidence). Call this from a notebook cell that already has
+    """Runs n_runs stochastic MC-DDIM samples on dataset[target_idx], then
+    plots the 4-panel spatial map: mean brightness, tissue class,
+    uncertainty, confidence. Call from a notebook cell that already has
     model/scheduler/device/dataset built (see module docstring)."""
     os.makedirs(out_dir, exist_ok=True)
 
