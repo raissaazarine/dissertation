@@ -6,9 +6,11 @@ __pycache__/
 .vscode/
 .claude/
 
-# Raw training data and model weights
+# Raw training data, model weights, and TensorBoard logs (filenames embed
+# local machine hostnames)
 datasets/
 training_checkpoints/
+logs/
 
 # Stale duplicates of the diffusion-model notebook/code -- canonical version
 # now lives under E:\Dissertation\VS_Diff-main
