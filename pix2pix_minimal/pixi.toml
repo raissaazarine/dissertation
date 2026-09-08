@@ -1,0 +1,32 @@
+[workspace]
+authors = ["sarakaratix2001 <30410501+ctbend@users.noreply.github.com>"]
+channels = ["pytorch", "conda-forge"]
+name = "pix2pix_minimal"
+platforms = ["win-64", "linux-64"]
+version = "0.1.0"
+
+[dependencies]
+python = "==3.9"
+numpy = "==1.22.4"
+libblas = { version = "*", build = "*mkl" }
+libcblas = { version = "*", build = "*mkl" }
+liblapack = { version = "*", build = "*mkl" }
+jupyterlab = ">=4.4.6,<5"
+tifffile = "==2022.2.9"
+matplotlib = "==3.5.1"
+pytorch = ">=2.0,<3.0"
+torchvision = ">=0.15,<1.0"
+cpuonly = "*"
+pip = "*"
+ipykernel = "*"
+
+[tasks]
+
+[pypi-dependencies]
+tensorflow = "==2.8"
+tensorflow-io = "==0.24.0"
+protobuf = "<=3.20.0"
+h5py = ">=3.1.0,<3.11"
+pandas = ">=1.3.0,<2.0"
+lpips = ">=0.1.4"
+scipy = ">=1.7.0,<1.8"

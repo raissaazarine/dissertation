@@ -1,0 +1,44 @@
+# Environments / caches / editor state -- not for git
+.pixi/*
+!.pixi/config.toml
+__pycache__/
+.ipynb_checkpoints/
+.vscode/
+.claude/
+
+# Raw training data and model weights
+datasets/
+training_checkpoints/
+
+# Stale duplicates of the diffusion-model notebook/code -- canonical version
+# now lives under E:\Dissertation\VS_Diff-main
+VS_Diff-main/
+train+inference.ipynb
+diffusion_model.ipynb
+pix2pix copy.ipynb
+
+# Scratch dumps and run logs
+cell101_src.txt
+cell105_src.txt
+resume_full_val_xai.log
+resume_full_val_xai.err.log
+resume_full_val_xai.pid
+
+# Full-val-set sweep/analysis outputs: keep the small summary CSVs and
+# curated figures, exclude the thousands of per-image prediction dumps and
+# large binary feature caches
+blur_sweep_output/*
+!blur_sweep_output/summary.csv
+contrast_sweep_output/*
+!contrast_sweep_output/summary.csv
+gaussian_sweep_output/*
+!gaussian_sweep_output/summary.csv
+salt_pepper_sweep_output/*
+!salt_pepper_sweep_output/summary.csv
+
+uncertainty/*.npz
+
+blur_output/train/
+blur_output/val/
+texture_output/train/
+texture_output/val/
