@@ -22,6 +22,7 @@ pix2pix copy.ipynb
 # Superseded by pix2pix_final.ipynb (superfluous/exploratory cells removed,
 # final cells uncommented); kept locally for reference
 pix2pix.ipynb
+pix2pix.py
 
 # Scratch dumps and run logs
 cell101_src.txt
